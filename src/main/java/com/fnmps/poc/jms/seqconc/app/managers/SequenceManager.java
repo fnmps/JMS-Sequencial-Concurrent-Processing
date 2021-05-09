@@ -14,8 +14,10 @@ import javax.jms.Message;
 import javax.jms.MessageConsumer;
 import javax.jms.Session;
 
-import com.fnmps.poc.jms.seqconc.app.listeners.KeySequenceMessageListener;
-import com.fnmps.poc.jms.seqconc.app.model.MySessionHolder;
+import com.fnmps.poc.jms.seqconc.app.listeners.AbstractKeySequenceMessageListener;
+import com.fnmps.poc.jms.seqconc.app.model.KeyAwareMessage;
+import com.fnmps.poc.jms.seqconc.app.model.MessageKeyExtractor;
+import com.fnmps.poc.jms.seqconc.app.model.SessionHolder;
 
 public class SequenceManager {
 
@@ -24,19 +26,22 @@ public class SequenceManager {
 	private MessageProcessor messageProcessorThread;
 
 	private Connection connection;
-	private KeySequenceMessageListener listener;
+	private AbstractKeySequenceMessageListener listener;
 	private String queueName;
+	private MessageKeyExtractor keyExtractor;
 
-	public List<MySessionHolder> sessionPool = new CopyOnWriteArrayList<>();
+	private List<SessionHolder> sessionPool = new CopyOnWriteArrayList<>();
 
-	public KeySequenceMessageListener getListener() {
+	public AbstractKeySequenceMessageListener getListener() {
 		return listener;
 	}
 
-	public SequenceManager(String queueName, ConnectionFactory connectionFactory) throws JMSException {
+	public SequenceManager(String queueName, ConnectionFactory connectionFactory,
+			AbstractKeySequenceMessageListener listener, MessageKeyExtractor keyExtractor) throws JMSException {
 		this.queueName = queueName;
 		this.connection = connectionFactory.createConnection();
-		this.listener = new KeySequenceMessageListener();
+		this.listener = listener;
+		this.keyExtractor = keyExtractor;
 		start();
 	}
 
@@ -57,6 +62,7 @@ public class SequenceManager {
 			executor.awaitTermination(5000, TimeUnit.MILLISECONDS);
 			connection.stop();
 		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
 		}
 	}
 
@@ -64,6 +70,14 @@ public class SequenceManager {
 		stop();
 		executor.shutdownNow();
 		mainExecutor.shutdownNow();
+		for (SessionHolder session : sessionPool) {
+			try {
+				session.getSession().close();
+			} catch (IllegalStateException | JMSException e) {
+				e.printStackTrace();
+			}
+		}
+		sessionPool.clear();
 		connection.close();
 	}
 
@@ -77,34 +91,24 @@ public class SequenceManager {
 	 */
 	class MessageProcessor implements Runnable {
 
-		private KeySequenceMessageListener messageProcessor;
+		private AbstractKeySequenceMessageListener messageListener;
 		private ExecutorService executor;
 		private MessageConsumer currentConsumer;
 		private Session currentSession;
 		volatile boolean shouldShutdown = false;
 
-		public MessageProcessor(KeySequenceMessageListener messageProcessor, ExecutorService executor) {
-			this.messageProcessor = messageProcessor;
+		public MessageProcessor(AbstractKeySequenceMessageListener messageProcessor, ExecutorService executor) {
+			this.messageListener = messageProcessor;
 			this.executor = executor;
 		}
-		
+
 		@Override
 		public void run() {
 			try {
 				while (!executor.isShutdown() && !shouldShutdown && !Thread.currentThread().isInterrupted()) {
-					MySessionHolder sessionHolder = getAvailableSession();
+					SessionHolder sessionHolder = getAvailableSession();
 					currentSession = sessionHolder.getSession();
-					try {
-						currentConsumer = currentSession.createConsumer(currentSession.createQueue(queueName));
-						Message message = currentConsumer.receive();
-						if (message != null) {
-							messageProcessor.onMessage(message, sessionHolder);
-						}
-						currentConsumer.close();
-					} catch (JMSException e) {
-						currentSession.rollback();
-						currentSession.close();
-					}
+					receiveAndProcessMessage(sessionHolder);
 				}
 			} catch (Exception e) {
 				try {
@@ -113,6 +117,21 @@ public class SequenceManager {
 				} catch (JMSException e1) {
 					e1.printStackTrace();
 				}
+			}
+		}
+
+		private void receiveAndProcessMessage(SessionHolder sessionHolder) throws JMSException {
+			try {
+				currentConsumer = currentSession.createConsumer(currentSession.createQueue(queueName));
+				Message message = currentConsumer.receive();
+				if (message != null) {
+					String key = keyExtractor.extractKey(message);
+					messageListener.onMessage(new KeyAwareMessage(message, key), sessionHolder);
+				}
+				currentConsumer.close();
+			} catch (JMSException e) {
+				currentSession.rollback();
+				currentSession.close();
 			}
 		}
 
@@ -125,38 +144,34 @@ public class SequenceManager {
 				currentConsumer.close();
 			}
 		}
-	}
 
-	/**
-	 * Fetches an existing unused session If none exists creates it and adds it to
-	 * the pool
-	 * 
-	 * (this should not be needed if application server already has configured a JMS
-	 * session pool)
-	 * 
-	 * @return
-	 * @throws JMSException
-	 */
-	private synchronized MySessionHolder getAvailableSession() throws JMSException {
-		MySessionHolder result = null;
-		for (MySessionHolder sessionHolder : sessionPool) {
-			if (sessionHolder.isAvailable()) {
-				result = sessionHolder;
+		/**
+		 * Fetches an existing unused session If none exists creates it and adds it to
+		 * the pool
+		 * 
+		 * (this should not be needed if application server already has configured a JMS
+		 * session pool)
+		 * 
+		 * @return
+		 * @throws JMSException
+		 */
+		private synchronized SessionHolder getAvailableSession() throws JMSException {
+			SessionHolder result = null;
+			for (SessionHolder sessionHolder : sessionPool) {
+				if (sessionHolder.isAvailable()) {
+					result = sessionHolder;
+				}
 			}
-		}
 
-		if (result == null) {
-			System.out.println("No session available! Creating new session...");
-			Session session = connection.createSession(Session.SESSION_TRANSACTED);
-			result = new MySessionHolder(session);
-			result.setAvailable(false);
-			sessionPool.add(result);
-			System.out.println("Session created! Number of sessions is " + sessionPool.size());
-		} else {
-			System.out.println("Reusing existing session...");
-			result.setAvailable(false);
+			if (result == null) {
+				Session session = connection.createSession(Session.SESSION_TRANSACTED);
+				result = new SessionHolder(session);
+				result.setAvailable(false);
+				sessionPool.add(result);
+			} else {
+				result.setAvailable(false);
+			}
+			return result;
 		}
-		return result;
 	}
-
 }
