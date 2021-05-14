@@ -17,7 +17,6 @@ public class MySimpleListener implements MessageListener {
 	public void onMessage(Message message) {
 		try {
 			String m = message.getBody(String.class);
-			System.out.println("Received message " + m + "...");
 			doTask(m);
 		} catch (JMSException e) {
 			e.printStackTrace();
@@ -25,13 +24,12 @@ public class MySimpleListener implements MessageListener {
 	}
 	
 	private void doTask(String message) {
-		System.out.println("Performing Task for message " + message + "...");
 		try {
 			Thread.sleep(SIMULATED_TASK_DURATION);
+			orderOfExecution.add(message);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-		System.out.println("Ended Task for message " + message + "!");
 	}
 	
 	public List<String> getOrderOfExecution() {

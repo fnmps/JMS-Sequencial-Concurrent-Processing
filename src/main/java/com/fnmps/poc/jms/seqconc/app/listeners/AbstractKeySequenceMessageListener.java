@@ -7,6 +7,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.jms.JMSException;
 import javax.jms.Message;
@@ -16,7 +18,7 @@ import com.fnmps.poc.jms.seqconc.app.model.SessionHolder;
 
 public abstract class AbstractKeySequenceMessageListener {
 
-	private static final int RECHECK_TURN_TIME = 500;
+	private static final Logger LOGGER = Logger.getLogger(AbstractKeySequenceMessageListener.class.getName());
 
 	private Map<String, ConcurrentLinkedQueue<KeyAwareMessage>> waitingToBeProcessed;
 	private ThreadPoolExecutor executor;
@@ -28,12 +30,16 @@ public abstract class AbstractKeySequenceMessageListener {
 		waitingToBeProcessed = new HashMap<>();
 	}
 
-	public void onMessage(KeyAwareMessage message, SessionHolder session) {
-		System.out.println("Received message " + message + "...");
+	public final void onMessage(KeyAwareMessage message, SessionHolder session) {
+		LOGGER.log(Level.FINE, "Received message {0}...", message);
 		// if already max number of executions, wait for one to end
 		semaphore.acquireUninterruptibly();
 		ConcurrentLinkedQueue<KeyAwareMessage> queue = getInternalQueue(message);
 		executor.execute(new ExecuteTaskInOrderThread(queue, message, session));
+	}
+
+	public final void shutdown() {
+		executor.shutdown();
 	}
 
 	/**
@@ -67,7 +73,7 @@ public abstract class AbstractKeySequenceMessageListener {
 	 * then it will have to wait and try again later
 	 *
 	 */
-	class ExecuteTaskInOrderThread implements Runnable {
+	final class ExecuteTaskInOrderThread implements Runnable {
 
 		private Queue<KeyAwareMessage> queue;
 		private KeyAwareMessage message;
@@ -83,11 +89,12 @@ public abstract class AbstractKeySequenceMessageListener {
 		public void run() {
 			while (!queue.peek().equals(message)) {
 				try {
-					synchronized (message.getMessage()) {
-						message.getMessage().wait(RECHECK_TURN_TIME);
+					synchronized (message) {
+						message.wait();
 					}
 				} catch (InterruptedException e) {
-					// ignore and try again
+					LOGGER.log(Level.FINER, e.getMessage(), e);
+					Thread.currentThread().interrupt();
 				}
 			}
 			executeTask(queue, message, session);
@@ -101,13 +108,14 @@ public abstract class AbstractKeySequenceMessageListener {
 		 * @param message
 		 * @param session
 		 */
-		private void executeTask(Queue<KeyAwareMessage> queue, KeyAwareMessage message, SessionHolder session) {
+		private void executeTask(Queue<KeyAwareMessage> queue, final KeyAwareMessage message, SessionHolder session) {
 			try {
 				doTask(message.getMessage());
 				message.getMessage().acknowledge();
 				session.getSession().commit();
 				session.setAvailable(true);
 			} catch (JMSException e) {
+				LOGGER.log(Level.SEVERE, e.getMessage(), e);
 				onMessageError(message.getMessage(), e);
 			} finally {
 				// Make sure no other thread is adding or removing queues while the updating of
@@ -118,9 +126,13 @@ public abstract class AbstractKeySequenceMessageListener {
 						waitingToBeProcessed.remove(message.getKey());
 					}
 				}
-				synchronized (message.getMessage()) {
-					message.getMessage().notifyAll();
+				KeyAwareMessage nextMessage = queue.peek();
+				if(nextMessage != null) {
+					synchronized (nextMessage) {
+						nextMessage.notifyAll();
+					}
 				}
+				
 				semaphore.release();
 			}
 		}

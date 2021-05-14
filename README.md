@@ -124,3 +124,21 @@ connectionFactory.setTransportType(MQ_TRANSPORT_TYPE);
 ```java
 new SequenceManager(QUEUE_NAME, connectionFactory, new MyMessageListener(100), new MyMessageKeyExtractor()))
 ```
+
+
+##Performance 
+
+Performance statistics using Java SE client:
+
+<p align="center">
+	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/table1.png?raw=true">
+</p>
+
+<p align="center">
+	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/table2.png?raw=true">
+</p>
+
+<p align="center">
+	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/table3.png?raw=true">
+</p>
+

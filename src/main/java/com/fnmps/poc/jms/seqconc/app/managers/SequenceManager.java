@@ -6,6 +6,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
@@ -20,6 +22,8 @@ import com.fnmps.poc.jms.seqconc.app.model.MessageKeyExtractor;
 import com.fnmps.poc.jms.seqconc.app.model.SessionHolder;
 
 public class SequenceManager {
+
+	private static final Logger LOGGER = Logger.getLogger(SequenceManager.class.getName());
 
 	private ThreadPoolExecutor executor;
 	private ExecutorService mainExecutor;
@@ -68,13 +72,14 @@ public class SequenceManager {
 
 	public void shutdown() throws JMSException {
 		stop();
+		listener.shutdown();
 		executor.shutdownNow();
 		mainExecutor.shutdownNow();
 		for (SessionHolder session : sessionPool) {
 			try {
 				session.getSession().close();
 			} catch (IllegalStateException | JMSException e) {
-				e.printStackTrace();
+				LOGGER.log(Level.SEVERE, e.getMessage(), e);
 			}
 		}
 		sessionPool.clear();
@@ -112,10 +117,10 @@ public class SequenceManager {
 				}
 			} catch (Exception e) {
 				try {
-					e.printStackTrace();
+					LOGGER.log(Level.SEVERE, e.getMessage(), e);
 					shutdown();
 				} catch (JMSException e1) {
-					e1.printStackTrace();
+					LOGGER.log(Level.SEVERE, e1.getMessage(), e1);
 				}
 			}
 		}
@@ -130,6 +135,7 @@ public class SequenceManager {
 				}
 				currentConsumer.close();
 			} catch (JMSException e) {
+				LOGGER.log(Level.SEVERE, e.getMessage(), e);
 				currentSession.rollback();
 				currentSession.close();
 			}
@@ -164,11 +170,14 @@ public class SequenceManager {
 			}
 
 			if (result == null) {
+				LOGGER.info("No session available! Creating new session...");
 				Session session = connection.createSession(Session.SESSION_TRANSACTED);
 				result = new SessionHolder(session);
 				result.setAvailable(false);
 				sessionPool.add(result);
+				LOGGER.log(Level.INFO, "Session created! Number of sessions is {0}", sessionPool.size());
 			} else {
+				LOGGER.info("Reusing existing session...");
 				result.setAvailable(false);
 			}
 			return result;
