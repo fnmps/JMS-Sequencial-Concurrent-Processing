@@ -121,6 +121,7 @@ public abstract class AbstractKeySequenceMessageListener {
 				// Make sure no other thread is adding or removing queues while the updating of
 				// the queues is ongoing
 				synchronized (waitingToBeProcessed) {
+					LOGGER.log(Level.FINE, "Queue status for key {0}: {1}", new Object[]{message.getKey(), queue.size()});
 					queue.poll();
 					if (queue.isEmpty()) {
 						waitingToBeProcessed.remove(message.getKey());

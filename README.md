@@ -1,4 +1,4 @@
-# JMS-Sequencial-Concurrent-Processing
+# JMS-Sequential-Concurrent-Processing
 An implementation of a JMS consumer that processes message sequentially if the messages have the same key but concurrently if they have different keys.
 
 ##Description of Solution
@@ -17,7 +17,7 @@ The AbstractKeySequenceMessageListener is responsible of keeping track of order 
 
 Considering an MQueue with the following messages (and respective keys):
 <p align="center">
-	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/img1.png?raw=true" width="100">
+	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/img1.png?raw=true" width="100">
 </p>
 
 The SequenceManager will read each of the messages sequentially in a separate session, extract the key from the message and delegate them to the AbstractKeySequenceMessageListener.
@@ -28,7 +28,7 @@ The Listener will then check if an internal queue already exists for the key of 
 <p align="center">
 	<figure class="image">
 		<figcaption>Step 1</figcaption>
-	  	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/img2.png?raw=true" width="400">
+	  	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/img2.png?raw=true" width="400">
 	</figure>
 </p>
 <br />
@@ -37,7 +37,7 @@ The Listener will then check if an internal queue already exists for the key of 
 <p align="center">
 	<figure class="image">
 		<figcaption>Step 2</figcaption>
-	  	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/img3.png?raw=true" width="400">
+	  	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/img3.png?raw=true" width="400">
 	</figure>
 </p>
 
@@ -46,7 +46,7 @@ The Listener will then check if an internal queue already exists for the key of 
 <p align="center">
 	<figure class="image">
 		<figcaption>Step N</figcaption>
-	  	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/img4.png?raw=true" width="400">
+	  	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/img4.png?raw=true" width="400">
 	</figure>
 </p>
 <br />
@@ -55,7 +55,7 @@ When a message is added to the respective internal queue, the listener will crea
 <br />
 <br />
 <p align="center">
-	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/img5.png?raw=true" width="400">
+	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/img5.png?raw=true" width="400">
 </p>
 <br />
 <br />
@@ -65,7 +65,7 @@ If the queue is empty, meaning no other message with the same key has been recei
 <br />
 <br />
 <p align="center">
-	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/img6.png?raw=true" width="600">
+	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/img6.png?raw=true" width="600">
 </p>
 
 ## Usage
@@ -129,16 +129,20 @@ new SequenceManager(QUEUE_NAME, connectionFactory, new MyMessageListener(100), n
 ##Performance 
 
 Performance statistics using Java SE client:
+* 5% of the messages have the same key
+* 100 maximum threads are used on the sequential-concurrent and concurrent
 
 <p align="center">
-	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/table1.png?raw=true">
+	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/table1.png?raw=true">
 </p>
 
 <p align="center">
-	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/table2.png?raw=true">
+	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/table2.png?raw=true">
 </p>
 
 <p align="center">
-	<img src="https://github.com/fnmps/JMS-Sequencial-Concurrent-Processing/blob/main/README%20Resources/table3.png?raw=true">
+	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/table3.png?raw=true">
 </p>
 
+*messages with the same keys are produced one after the other (1.0, 1.1, 1.3. ... 2.1, 2.2, 2.3, ...)
+**messages with the same keys are produced after each batch (1.0, 2.0, 3.0, ..., 1.1, 2.1, 3.1, ...)

@@ -19,7 +19,7 @@ import com.fnmps.poc.jms.seqconc.app.managers.SequenceManager;
 import com.ibm.mq.jms.MQConnectionFactory;
 import com.ibm.msg.client.wmq.WMQConstants;
 
-public class MessageLoader2 {
+public class MessageLoader3 {
 
 	private static MQConnectionFactory createFactory() throws JMSException {
 		MQConnectionFactory factory = new MQConnectionFactory();
@@ -55,14 +55,14 @@ public class MessageLoader2 {
 	public static void main(String[] args) throws JMSException, InterruptedException {
 
 		System.setProperty("java.util.logging.config.file",
-				MessageLoader2.class.getClassLoader().getResource("logging.properties").getPath());
+				MessageLoader3.class.getClassLoader().getResource("logging.properties").getPath());
 		MQConnectionFactory factory = createFactory();
 		Connection connection = factory.createConnection();
 		Session session = connection.createSession(true, Session.SESSION_TRANSACTED);
 
 		DefaultMessageListenerContainer seqContainer = createListenerContainer(factory, "DEV.QUEUE.1", "1");
-		SequenceManager seqConcManager = createSequenceManager(factory, "DEV.QUEUE.2", 400);
-		DefaultMessageListenerContainer concContainer = createListenerContainer(factory, "DEV.QUEUE.3", "1-400");
+		SequenceManager seqConcManager = createSequenceManager(factory, "DEV.QUEUE.2", 100);
+		DefaultMessageListenerContainer concContainer = createListenerContainer(factory, "DEV.QUEUE.3", "1-100");
 
 		MySimpleListener seqListener = (MySimpleListener) seqContainer.getMessageListener();
 		MyMessageListener seqConcListener = (MyMessageListener) seqConcManager.getListener();
@@ -75,8 +75,8 @@ public class MessageLoader2 {
 		concListener.getOrderOfExecution().clear();
 		System.out.println("Warming up finished!\n");
 
-		for (int i = 0; i < 3; i++) {
-			System.out.println("\nStarting Lot " + (i + 1) + "...\n");
+//		for (int i = 0; i < 3; i++) {
+//			System.out.println("\nStarting Lot " + (i + 1) + "...\n");
 			System.out.println("\nStarting test 1 (80)...");
 			performTestSuite(factory, session, null, seqConcListener, concListener, 40, 2); // 80
 			seqListener.getOrderOfExecution().clear();
@@ -97,12 +97,12 @@ public class MessageLoader2 {
 			seqListener.getOrderOfExecution().clear();
 			seqConcListener.getOrderOfExecution().clear();
 			concListener.getOrderOfExecution().clear();
-			System.out.println("\nStarting test 5 (11 520)...");
-			performTestSuite(factory, session, null, seqConcListener, concListener, 480, 24); // 11 520
-			seqListener.getOrderOfExecution().clear();
-			seqConcListener.getOrderOfExecution().clear();
-			concListener.getOrderOfExecution().clear();
-		}
+//			System.out.println("\nStarting test 5 (11 520)...");
+//			performTestSuite(factory, session, null, seqConcListener, concListener, 480, 24); // 11 520
+//			seqListener.getOrderOfExecution().clear();
+//			seqConcListener.getOrderOfExecution().clear();
+//			concListener.getOrderOfExecution().clear();
+//		}
 
 		seqContainer.stop();
 		seqContainer.shutdown();
