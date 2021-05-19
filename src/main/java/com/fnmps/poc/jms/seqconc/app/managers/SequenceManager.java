@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -25,7 +24,6 @@ public class SequenceManager {
 
 	private static final Logger LOGGER = Logger.getLogger(SequenceManager.class.getName());
 
-	private ThreadPoolExecutor executor;
 	private ExecutorService mainExecutor;
 	private MessageProcessor messageProcessorThread;
 
@@ -52,8 +50,7 @@ public class SequenceManager {
 	public void start() throws JMSException {
 		connection.start();
 		mainExecutor = Executors.newSingleThreadExecutor();
-		executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
-		messageProcessorThread = new MessageProcessor(listener, executor);
+		messageProcessorThread = new MessageProcessor(listener);
 		mainExecutor.execute(messageProcessorThread);
 	}
 
@@ -62,8 +59,6 @@ public class SequenceManager {
 			messageProcessorThread.shutdown();
 			mainExecutor.shutdown();
 			mainExecutor.awaitTermination(5000, TimeUnit.MILLISECONDS);
-			executor.shutdown();
-			executor.awaitTermination(5000, TimeUnit.MILLISECONDS);
 			connection.stop();
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -73,7 +68,6 @@ public class SequenceManager {
 	public void shutdown() throws JMSException {
 		stop();
 		listener.shutdown();
-		executor.shutdownNow();
 		mainExecutor.shutdownNow();
 		for (SessionHolder session : sessionPool) {
 			try {
@@ -97,31 +91,24 @@ public class SequenceManager {
 	class MessageProcessor implements Runnable {
 
 		private AbstractKeySequenceMessageListener messageListener;
-		private ExecutorService executor;
 		private MessageConsumer currentConsumer;
 		private Session currentSession;
 		volatile boolean shouldShutdown = false;
 
-		public MessageProcessor(AbstractKeySequenceMessageListener messageProcessor, ExecutorService executor) {
+		public MessageProcessor(AbstractKeySequenceMessageListener messageProcessor) {
 			this.messageListener = messageProcessor;
-			this.executor = executor;
 		}
 
 		@Override
 		public void run() {
 			try {
-				while (!executor.isShutdown() && !shouldShutdown && !Thread.currentThread().isInterrupted()) {
+				while (!shouldShutdown && !Thread.currentThread().isInterrupted()) {
 					SessionHolder sessionHolder = getAvailableSession();
 					currentSession = sessionHolder.getSession();
 					receiveAndProcessMessage(sessionHolder);
 				}
 			} catch (Exception e) {
-				try {
-					LOGGER.log(Level.SEVERE, e.getMessage(), e);
-					shutdown();
-				} catch (JMSException e1) {
-					LOGGER.log(Level.SEVERE, e1.getMessage(), e1);
-				}
+				LOGGER.log(Level.SEVERE, e.getMessage(), e);
 			}
 		}
 
@@ -137,15 +124,11 @@ public class SequenceManager {
 			} catch (JMSException e) {
 				LOGGER.log(Level.SEVERE, e.getMessage(), e);
 				currentSession.rollback();
-				currentSession.close();
 			}
 		}
 
 		public void shutdown() throws JMSException {
 			shouldShutdown = true;
-			if (currentSession != null) {
-				currentSession.close();
-			}
 			if (currentConsumer != null) {
 				currentConsumer.close();
 			}
@@ -174,12 +157,13 @@ public class SequenceManager {
 				Session session = connection.createSession(Session.SESSION_TRANSACTED);
 				result = new SessionHolder(session);
 				result.setAvailable(false);
-				sessionPool.add(result);
 				LOGGER.log(Level.INFO, "Session created! Number of sessions is {0}", sessionPool.size());
 			} else {
 				LOGGER.info("Reusing existing session...");
 				result.setAvailable(false);
+				sessionPool.add(result);
 			}
+			sessionPool.add(result);
 			return result;
 		}
 	}

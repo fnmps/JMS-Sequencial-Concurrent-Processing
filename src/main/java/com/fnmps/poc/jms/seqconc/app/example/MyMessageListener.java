@@ -34,8 +34,15 @@ public class MyMessageListener extends AbstractKeySequenceMessageListener {
 	}
 
 	@Override
-	public void onMessageError(Message message, Exception e) {
+	public void onMessageError(Message message, Exception e, boolean hasTaskPerformed) {
 		e.printStackTrace();
+		try {
+			if(hasTaskPerformed) {
+				orderOfExecution.remove(message.getBody(String.class));
+			}
+		} catch (JMSException e1) {
+			e1.printStackTrace();
+		}
 	}
 
 	public List<String> getOrderOfExecution() {

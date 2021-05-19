@@ -14,7 +14,7 @@ import com.ibm.msg.client.wmq.WMQConstants;
 
 public class MessageLoader {
 
-	public static final int NUMBER_OF_MESSAGE_KEYS = 20;
+	public static final int NUMBER_OF_MESSAGE_KEYS = 200;
 	public static final int NUMBER_OF_MESSAGE_VERSION_PER_KEY = 5;
 
 	public static void main(String[] args) throws JMSException, InterruptedException {
@@ -31,8 +31,8 @@ public class MessageLoader {
 		
 		System.out.println("(Concurrent) All messages processed in " + elapsedTime + "ms");
 
-		elapsedTime = fillAndWaitProcessing(session, "DEV.QUEUE.2");
-		System.out.println("(Simple) All messages processed in " + elapsedTime + "ms");
+//		elapsedTime = fillAndWaitProcessing(session, "DEV.QUEUE.2");
+//		System.out.println("(Simple) All messages processed in " + elapsedTime + "ms");
 	}
 
 	private static long fillAndWaitProcessing(Session session, String queueName) throws JMSException, InterruptedException {
@@ -47,9 +47,9 @@ public class MessageLoader {
 			}
 		}
 
-		while (getMessageCount(session, queueName) > 0) {
-			Thread.sleep(100);
-		}
+//		while (getMessageCount(session, queueName) > 0) {
+//			Thread.sleep(100);
+//		}
 		long finish = System.currentTimeMillis();
 		return finish - start;
 		

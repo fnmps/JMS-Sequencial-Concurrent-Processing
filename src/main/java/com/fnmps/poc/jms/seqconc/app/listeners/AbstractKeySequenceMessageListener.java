@@ -7,6 +7,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -23,6 +24,7 @@ public abstract class AbstractKeySequenceMessageListener {
 	private Map<String, ConcurrentLinkedQueue<KeyAwareMessage>> waitingToBeProcessed;
 	private ThreadPoolExecutor executor;
 	private Semaphore semaphore;
+	private boolean shutdownReceived = false;
 
 	public AbstractKeySequenceMessageListener(int maxNbThreads) {
 		executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxNbThreads);
@@ -39,7 +41,13 @@ public abstract class AbstractKeySequenceMessageListener {
 	}
 
 	public final void shutdown() {
+		shutdownReceived = true;
 		executor.shutdown();
+		try {
+			executor.awaitTermination(5000, TimeUnit.MILLISECONDS);
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
 	}
 
 	/**
@@ -109,31 +117,36 @@ public abstract class AbstractKeySequenceMessageListener {
 		 * @param session
 		 */
 		private void executeTask(Queue<KeyAwareMessage> queue, final KeyAwareMessage message, SessionHolder session) {
+			boolean taskPerformed = false;
 			try {
-				doTask(message.getMessage());
-				message.getMessage().acknowledge();
-				session.getSession().commit();
-				session.setAvailable(true);
+				if(!shutdownReceived) {
+					doTask(message.getMessage());
+					taskPerformed = true;
+					message.getMessage().acknowledge();
+					session.getSession().commit();
+				}
+					
 			} catch (JMSException e) {
 				LOGGER.log(Level.SEVERE, e.getMessage(), e);
-				onMessageError(message.getMessage(), e);
+				onMessageError(message.getMessage(), e, taskPerformed);
 			} finally {
 				// Make sure no other thread is adding or removing queues while the updating of
 				// the queues is ongoing
 				synchronized (waitingToBeProcessed) {
-					LOGGER.log(Level.FINE, "Queue status for key {0}: {1}", new Object[]{message.getKey(), queue.size()});
+					LOGGER.log(Level.FINE, "Queue status for key {0}: {1}",
+							new Object[] { message.getKey(), queue.size() });
 					queue.poll();
 					if (queue.isEmpty()) {
 						waitingToBeProcessed.remove(message.getKey());
 					}
 				}
 				KeyAwareMessage nextMessage = queue.peek();
-				if(nextMessage != null) {
+				if (nextMessage != null) {
 					synchronized (nextMessage) {
 						nextMessage.notifyAll();
 					}
 				}
-				
+				session.setAvailable(true);
 				semaphore.release();
 			}
 		}
@@ -153,7 +166,8 @@ public abstract class AbstractKeySequenceMessageListener {
 	 * 
 	 * @param message
 	 * @param e
+	 * @param hasTaskFinished 
 	 */
-	public abstract void onMessageError(Message message, Exception e);
+	public abstract void onMessageError(Message message, Exception e, boolean hasTaskFinished);
 
 }
