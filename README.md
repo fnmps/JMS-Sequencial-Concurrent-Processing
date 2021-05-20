@@ -15,7 +15,16 @@ The AbstractKeySequenceMessageListener is responsible of keeping track of order 
 
 ###Algorithm
 
-Considering an MQueue with the following messages (and respective keys):
+The flow of message processing is as follows:
+
+<p align="center">
+	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/workflow1.png?raw=true">
+</p>
+
+
+#####Detail of Flow
+
+Considering a MQueue with the following messages (and respective keys):
 <p align="center">
 	<img src="https://github.com/fnmps/JMS-Sequential-Concurrent-Processing/blob/main/README%20Resources/img1.png?raw=true" width="100">
 </p>
