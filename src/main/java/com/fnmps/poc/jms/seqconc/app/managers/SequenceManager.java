@@ -61,6 +61,7 @@ public class SequenceManager {
 			mainExecutor.awaitTermination(5000, TimeUnit.MILLISECONDS);
 			connection.stop();
 		} catch (InterruptedException e) {
+			LOGGER.log(Level.SEVERE, e.getMessage(), e);
 			Thread.currentThread().interrupt();
 		}
 	}
@@ -88,33 +89,35 @@ public class SequenceManager {
 	 * of the message that is still in processing is not affected
 	 *
 	 */
-	class MessageProcessor implements Runnable {
+	class MessageProcessor extends Thread {
 
 		private AbstractKeySequenceMessageListener messageListener;
-		private MessageConsumer currentConsumer;
-		private Session currentSession;
-		volatile boolean shouldShutdown = false;
+		private boolean shouldShutdown;
 
 		public MessageProcessor(AbstractKeySequenceMessageListener messageProcessor) {
 			this.messageListener = messageProcessor;
+			this.shouldShutdown = false;
 		}
 
 		@Override
 		public void run() {
 			try {
-				while (!shouldShutdown && !Thread.currentThread().isInterrupted()) {
+				LOGGER.log(Level.FINEST, "Starting processing messages...");
+				while (!(shouldShutdown || Thread.currentThread().isInterrupted())) {
 					SessionHolder sessionHolder = getAvailableSession();
-					currentSession = sessionHolder.getSession();
 					receiveAndProcessMessage(sessionHolder);
 				}
+				LOGGER.log(Level.FINEST, "No longer processing messages...");
 			} catch (Exception e) {
 				LOGGER.log(Level.SEVERE, e.getMessage(), e);
 			}
+
 		}
 
 		private void receiveAndProcessMessage(SessionHolder sessionHolder) throws JMSException {
-			try {
-				currentConsumer = currentSession.createConsumer(currentSession.createQueue(queueName));
+			Session currentSession = sessionHolder.getSession();
+			try (MessageConsumer currentConsumer = currentSession
+					.createConsumer(currentSession.createQueue(queueName))) {
 				Message message = currentConsumer.receive();
 				if (message != null) {
 					String key = keyExtractor.extractKey(message);
@@ -123,15 +126,14 @@ public class SequenceManager {
 				currentConsumer.close();
 			} catch (JMSException e) {
 				LOGGER.log(Level.SEVERE, e.getMessage(), e);
-				currentSession.rollback();
+				if (!e.getErrorCode().equals("JMSCC0020")) {
+					currentSession.rollback();
+				}
 			}
 		}
 
-		public void shutdown() throws JMSException {
+		public void shutdown() {
 			shouldShutdown = true;
-			if (currentConsumer != null) {
-				currentConsumer.close();
-			}
 		}
 
 		/**

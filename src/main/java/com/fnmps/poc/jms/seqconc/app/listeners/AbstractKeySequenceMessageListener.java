@@ -25,14 +25,19 @@ public abstract class AbstractKeySequenceMessageListener {
 	private ThreadPoolExecutor executor;
 	private Semaphore semaphore;
 	private boolean shutdownReceived = false;
+	private int maxNbThreads;
 
 	public AbstractKeySequenceMessageListener(int maxNbThreads) {
+		this.maxNbThreads = maxNbThreads;
 		executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxNbThreads);
 		semaphore = new Semaphore(maxNbThreads);
 		waitingToBeProcessed = new HashMap<>();
 	}
 
 	public final void onMessage(KeyAwareMessage message, SessionHolder session) {
+		if(executor.isShutdown()) {
+			executor  = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxNbThreads); 
+		}
 		LOGGER.log(Level.FINE, "Received message {0}...", message);
 		// if already max number of executions, wait for one to end
 		semaphore.acquireUninterruptibly();
@@ -46,6 +51,7 @@ public abstract class AbstractKeySequenceMessageListener {
 		try {
 			executor.awaitTermination(5000, TimeUnit.MILLISECONDS);
 		} catch (InterruptedException e) {
+			LOGGER.log(Level.SEVERE, e.getMessage(), e);
 			Thread.currentThread().interrupt();
 		}
 	}
