@@ -118,7 +118,9 @@ public class SequenceManager {
 	public void shutdown() throws JMSException {
 		stop();
 		listener.shutdown();
-		mainExecutor.shutdownNow();
+		if(!mainExecutor.isShutdown()) {
+			mainExecutor.shutdownNow();
+		}
 		for (SessionHolder session : sessionPool) {
 			try {
 				session.getSession().close();
@@ -138,7 +140,7 @@ public class SequenceManager {
 	 * of the message that is still in processing is not affected
 	 *
 	 */
-	class MessageProcessor extends Thread {
+	class MessageProcessor implements Runnable {
 
 		private AbstractKeySequenceMessageListener messageListener;
 		private boolean shouldShutdown;
@@ -152,7 +154,7 @@ public class SequenceManager {
 		public void run() {
 			try {
 				LOGGER.log(Level.FINEST, "Starting processing messages...");
-				while (!(shouldShutdown || Thread.currentThread().isInterrupted())) {
+				while (!(this.shouldShutdown || Thread.currentThread().isInterrupted())) {
 					SessionHolder sessionHolder = getAvailableSession();
 					receiveAndProcessMessage(sessionHolder);
 				}
@@ -172,7 +174,6 @@ public class SequenceManager {
 					String key = keyExtractor.extractKey(message);
 					messageListener.onMessage(new KeyAwareMessage(message, key), sessionHolder);
 				}
-				currentConsumer.close();
 			} catch (JMSException e) {
 				LOGGER.log(Level.SEVERE, e.getMessage(), e);
 				if (!e.getErrorCode().equals("JMSCC0020")) {
@@ -182,7 +183,7 @@ public class SequenceManager {
 		}
 
 		public void shutdown() {
-			shouldShutdown = true;
+			this.shouldShutdown = true;
 		}
 
 		/**

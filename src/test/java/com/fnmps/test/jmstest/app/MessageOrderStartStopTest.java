@@ -119,8 +119,8 @@ public class MessageOrderStartStopTest {
 			Thread.sleep(1000);
 			System.out.println("Stopping...");
 			tmpSet = new LinkedHashSet<>(listener.getOrderOfExecution());
-			seqConcManager.stop();
-			Thread.sleep(1000);
+			seqConcManager.shutdown();
+			Thread.sleep(5000);
 			System.out.println(tmpSet.size() + " messages processed...");
 			tmpSet = new LinkedHashSet<>(listener.getOrderOfExecution());
 		}

@@ -24,7 +24,7 @@ public abstract class AbstractKeySequenceMessageListener {
 	private Map<String, ConcurrentLinkedQueue<KeyAwareMessage>> waitingToBeProcessed;
 	private ThreadPoolExecutor executor;
 	private Semaphore semaphore;
-	private boolean shutdownReceived = false;
+	private boolean shutdownReceived;
 	private int maxNbThreads;
 
 	public AbstractKeySequenceMessageListener(int maxNbThreads) {
@@ -35,8 +35,9 @@ public abstract class AbstractKeySequenceMessageListener {
 	}
 
 	public final void onMessage(KeyAwareMessage message, SessionHolder session) {
-		if(executor.isShutdown()) {
-			executor  = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxNbThreads); 
+		if(executor == null || executor.isShutdown()) {
+			executor  = (ThreadPoolExecutor) Executors.newFixedThreadPool(maxNbThreads);
+			shutdownReceived = false;
 		}
 		LOGGER.log(Level.FINE, "Received message {0}...", message);
 		// if already max number of executions, wait for one to end
