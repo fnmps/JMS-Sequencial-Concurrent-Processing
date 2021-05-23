@@ -46,10 +46,15 @@ public class MessageLoader3 {
 		return container;
 	}
 
-	private static SequenceManager createSequenceManager(MQConnectionFactory factory, String queueName, int nbThreads)
-			throws JMSException {
-		MyMessageListener listener = new MyMessageListener(nbThreads);
-		return new SequenceManager(queueName, factory, listener, new MyMessageKeyExtractor());
+	public static SequenceManager createSequenceManager(ConnectionFactory connectionFactory, String queueName,
+			int nbThreads) throws JMSException {
+		SequenceManager seqMgr = new SequenceManager();
+		seqMgr.setConnectionFactory(connectionFactory);
+		seqMgr.setQueueName(queueName);
+		seqMgr.setListener(new MyMessageListener(nbThreads));
+		seqMgr.setKeyExtractor(new MyMessageKeyExtractor());
+		seqMgr.start();
+		return seqMgr;
 	}
 
 	public static void main(String[] args) throws JMSException, InterruptedException {
@@ -77,26 +82,26 @@ public class MessageLoader3 {
 
 //		for (int i = 0; i < 3; i++) {
 //			System.out.println("\nStarting Lot " + (i + 1) + "...\n");
-			System.out.println("\nStarting test 1 (80)...");
-			performTestSuite(factory, session, null, seqConcListener, concListener, 40, 2); // 80
-			seqListener.getOrderOfExecution().clear();
-			seqConcListener.getOrderOfExecution().clear();
-			concListener.getOrderOfExecution().clear();
-			System.out.println("\nStarting test 2 (320)...");
-			performTestSuite(factory, session, null, seqConcListener, concListener, 80, 4); // 320
-			seqListener.getOrderOfExecution().clear();
-			seqConcListener.getOrderOfExecution().clear();
-			concListener.getOrderOfExecution().clear();
-			System.out.println("\nStarting test 3 (1 280)...");
-			performTestSuite(factory, session, null, seqConcListener, concListener, 160, 8); // 1 280
-			seqListener.getOrderOfExecution().clear();
-			seqConcListener.getOrderOfExecution().clear();
-			concListener.getOrderOfExecution().clear();
-			System.out.println("\nStarting test 4 (5 120)...");
-			performTestSuite(factory, session, null, seqConcListener, concListener, 320, 16); // 5 120
-			seqListener.getOrderOfExecution().clear();
-			seqConcListener.getOrderOfExecution().clear();
-			concListener.getOrderOfExecution().clear();
+		System.out.println("\nStarting test 1 (80)...");
+		performTestSuite(factory, session, null, seqConcListener, concListener, 40, 2); // 80
+		seqListener.getOrderOfExecution().clear();
+		seqConcListener.getOrderOfExecution().clear();
+		concListener.getOrderOfExecution().clear();
+		System.out.println("\nStarting test 2 (320)...");
+		performTestSuite(factory, session, null, seqConcListener, concListener, 80, 4); // 320
+		seqListener.getOrderOfExecution().clear();
+		seqConcListener.getOrderOfExecution().clear();
+		concListener.getOrderOfExecution().clear();
+		System.out.println("\nStarting test 3 (1 280)...");
+		performTestSuite(factory, session, null, seqConcListener, concListener, 160, 8); // 1 280
+		seqListener.getOrderOfExecution().clear();
+		seqConcListener.getOrderOfExecution().clear();
+		concListener.getOrderOfExecution().clear();
+//			System.out.println("\nStarting test 4 (5 120)...");
+//			performTestSuite(factory, session, null, seqConcListener, concListener, 320, 16); // 5 120
+//			seqListener.getOrderOfExecution().clear();
+//			seqConcListener.getOrderOfExecution().clear();
+//			concListener.getOrderOfExecution().clear();
 //			System.out.println("\nStarting test 5 (11 520)...");
 //			performTestSuite(factory, session, null, seqConcListener, concListener, 480, 24); // 11 520
 //			seqListener.getOrderOfExecution().clear();

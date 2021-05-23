@@ -1,16 +1,27 @@
 package com.fnmps.poc.jms.seqconc.app.model;
 
+import javax.jms.Connection;
+import javax.jms.JMSException;
 import javax.jms.Session;
 
 public class SessionHolder {
+	private Connection connection;
 	private Session session;
 	private boolean isAvailable = true;
 
-	public SessionHolder(Session session) {
-		this.session = session;
+	public SessionHolder(Connection connection) {
+		this.connection = connection;
 	}
 
-	public Session getSession() {
+	public Connection getConnection() {
+		return connection;
+	}
+
+	public Session getSession() throws JMSException {
+		if (session == null) {
+			this.connection.start();
+			this.session = connection.createSession(Session.SESSION_TRANSACTED);
+		}
 		return session;
 	}
 
@@ -21,5 +32,5 @@ public class SessionHolder {
 	public void setAvailable(boolean isAvailable) {
 		this.isAvailable = isAvailable;
 	}
-	
+
 }

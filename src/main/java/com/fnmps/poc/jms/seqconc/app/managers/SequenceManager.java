@@ -8,7 +8,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.jms.Connection;
 import javax.jms.ConnectionFactory;
 import javax.jms.JMSException;
 import javax.jms.Message;
@@ -27,7 +26,7 @@ public class SequenceManager {
 	private ExecutorService mainExecutor;
 	private MessageProcessor messageProcessorThread;
 
-	private Connection connection;
+	private ConnectionFactory connectionFactory;
 	private AbstractKeySequenceMessageListener listener;
 	private String queueName;
 	private MessageKeyExtractor keyExtractor;
@@ -38,17 +37,65 @@ public class SequenceManager {
 		return listener;
 	}
 
-	public SequenceManager(String queueName, ConnectionFactory connectionFactory,
-			AbstractKeySequenceMessageListener listener, MessageKeyExtractor keyExtractor) throws JMSException {
+	public ConnectionFactory getConnectionFactory() {
+		return connectionFactory;
+	}
+
+	public void setConnectionFactory(ConnectionFactory connectionFactory) {
+		this.connectionFactory = connectionFactory;
+	}
+
+	public String getQueueName() {
+		return queueName;
+	}
+
+	public void setQueueName(String queueName) {
 		this.queueName = queueName;
-		this.connection = connectionFactory.createConnection();
+	}
+
+	public MessageKeyExtractor getKeyExtractor() {
+		return keyExtractor;
+	}
+
+	public void setKeyExtractor(MessageKeyExtractor keyExtractor) {
+		this.keyExtractor = keyExtractor;
+	}
+
+	public void setListener(AbstractKeySequenceMessageListener listener) {
+		this.listener = listener;
+	}
+
+	public SequenceManager(String queueName, ConnectionFactory connectionFactory,
+			AbstractKeySequenceMessageListener listener, MessageKeyExtractor keyExtractor) {
+		this.queueName = queueName;
 		this.listener = listener;
 		this.keyExtractor = keyExtractor;
-		start();
+		this.connectionFactory = connectionFactory;
+	}
+
+	public SequenceManager() {
 	}
 
 	public void start() throws JMSException {
-		connection.start();
+		if (connectionFactory == null) {
+			throw new IllegalStateException("connectionFactory cannot be null");
+		}
+
+		if (queueName == null) {
+			throw new IllegalStateException("queueName cannot be null");
+		}
+
+		if (listener == null) {
+			throw new IllegalStateException("listener cannot be null");
+		}
+
+		if (keyExtractor == null) {
+			throw new IllegalStateException("keyExtractor cannot be null");
+		}
+
+		for (SessionHolder sessionHolder : sessionPool) {
+			sessionHolder.getConnection().start();
+		}
 		mainExecutor = Executors.newSingleThreadExecutor();
 		messageProcessorThread = new MessageProcessor(listener);
 		mainExecutor.execute(messageProcessorThread);
@@ -59,7 +106,9 @@ public class SequenceManager {
 			messageProcessorThread.shutdown();
 			mainExecutor.shutdown();
 			mainExecutor.awaitTermination(5000, TimeUnit.MILLISECONDS);
-			connection.stop();
+			for (SessionHolder sessionHolder : sessionPool) {
+				sessionHolder.getConnection().stop();
+			}
 		} catch (InterruptedException e) {
 			LOGGER.log(Level.SEVERE, e.getMessage(), e);
 			Thread.currentThread().interrupt();
@@ -73,12 +122,12 @@ public class SequenceManager {
 		for (SessionHolder session : sessionPool) {
 			try {
 				session.getSession().close();
+				session.getConnection().close();
 			} catch (IllegalStateException | JMSException e) {
 				LOGGER.log(Level.SEVERE, e.getMessage(), e);
 			}
 		}
 		sessionPool.clear();
-		connection.close();
 	}
 
 	/**
@@ -156,8 +205,7 @@ public class SequenceManager {
 
 			if (result == null) {
 				LOGGER.info("No session available! Creating new session...");
-				Session session = connection.createSession(Session.SESSION_TRANSACTED);
-				result = new SessionHolder(session);
+				result = new SessionHolder(connectionFactory.createConnection());
 				result.setAvailable(false);
 				LOGGER.log(Level.INFO, "Session created! Number of sessions is {0}", sessionPool.size());
 			} else {

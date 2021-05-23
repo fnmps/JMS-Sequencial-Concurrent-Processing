@@ -24,13 +24,26 @@ public class AppMessageManager {
 	private ConnectionFactory connectionFactory;
 
 	@PostConstruct
-	private void init() throws JMSException {
+	private void init() {
 		sequenceManagers = new HashMap<>();
-		sequenceManagers.put("DEV.QUEUE.1", new SequenceManager("DEV.QUEUE.1", connectionFactory,
-				new MyMessageListener(100), new MyMessageKeyExtractor()));
+		sequenceManagers.put("DEV.QUEUE.1", createSequenceManager("DEV.QUEUE.1"));
 		springListenerContainers = new HashMap<>();
 		springListenerContainers.put("DEV.QUEUE.2", createListenerContainer("DEV.QUEUE.2", "1-1"));
 		springListenerContainers.put("DEV.QUEUE.3", createListenerContainer("DEV.QUEUE.3", "5-10"));
+	}
+	
+	public SequenceManager createSequenceManager(String queueName) {
+		SequenceManager seqMgr = new SequenceManager();
+		try {
+			seqMgr.setConnectionFactory(connectionFactory);
+			seqMgr.setQueueName(queueName);
+			seqMgr.setListener(new MyMessageListener(100));
+			seqMgr.setKeyExtractor(new MyMessageKeyExtractor());
+			seqMgr.start();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		return seqMgr;
 	}
 
 	public DefaultMessageListenerContainer createListenerContainer(String queueName, String concurrency) {

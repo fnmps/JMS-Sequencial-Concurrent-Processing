@@ -46,12 +46,16 @@ public class MessageLoader2 {
 		return container;
 	}
 
-	private static SequenceManager createSequenceManager(MQConnectionFactory factory, String queueName, int nbThreads)
-			throws JMSException {
-		MyMessageListener listener = new MyMessageListener(nbThreads);
-		return new SequenceManager(queueName, factory, listener, new MyMessageKeyExtractor());
+	public static SequenceManager createSequenceManager(ConnectionFactory connectionFactory, String queueName,
+			int nbThreads) throws JMSException {
+		SequenceManager seqMgr = new SequenceManager();
+		seqMgr.setConnectionFactory(connectionFactory);
+		seqMgr.setQueueName(queueName);
+		seqMgr.setListener(new MyMessageListener(nbThreads));
+		seqMgr.setKeyExtractor(new MyMessageKeyExtractor());
+		seqMgr.start();
+		return seqMgr;
 	}
-
 	public static void main(String[] args) throws JMSException, InterruptedException {
 
 		System.setProperty("java.util.logging.config.file",
